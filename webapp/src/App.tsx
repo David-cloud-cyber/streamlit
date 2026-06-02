@@ -42,8 +42,8 @@ import {
   AssetFile,
   TaskRecord,
   VideoRequest
-} from "@/lib/api";
-import { createSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase";
+} from "./lib/api";
+import { createSupabaseBrowserClient, isSupabaseConfigured } from "./lib/supabase";
 
 type ViewKey = "studio" | "tasks" | "media" | "settings";
 type Toast = { tone: "success" | "error" | "info"; message: string } | null;
@@ -940,7 +940,7 @@ export default function Home() {
                 </div>
                 {!apiOnline && (
                   <p className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-700">
-                    L'API FastAPI ne repond pas encore. Lance le backend ou configure NEXT_PUBLIC_API_BASE_URL.
+                    L'API FastAPI ne repond pas encore. Lance le backend ou configure VITE_API_BASE_URL.
                   </p>
                 )}
                 {supabaseEnabled && !activeProvider && quota?.remaining === 0 && (

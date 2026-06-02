@@ -1,6 +1,6 @@
 # MoneyPrinterTurbo Studio
 
-Nouvelle interface Next.js pour MoneyPrinterTurbo. Elle coexiste avec l'interface Streamlit et consomme l'API FastAPI existante sous `/api/v1`.
+Nouvelle interface React + Vite pour MoneyPrinterTurbo. Elle coexiste avec l'interface Streamlit et consomme l'API FastAPI existante sous `/api/v1`.
 
 ## Demarrage
 
@@ -14,9 +14,9 @@ npm run dev
 Par defaut, l'interface attend le backend sur :
 
 ```text
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
-NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-supabase-publishable-key
+VITE_API_BASE_URL=http://localhost:8080
+VITE_SUPABASE_URL=https://your-project-ref.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=your-supabase-publishable-key
 ```
 
 Lance aussi le backend depuis la racine du projet :
@@ -51,7 +51,7 @@ select vault.create_secret(
 
 ## Deploiement Vercel
 
-Vercel doit construire uniquement l'app Next.js. Le fichier `vercel.json` a la racine force le build depuis `webapp/`, `.vercelignore` exclut le backend Python, et `.python-version` est en `3.12` pour eviter l'erreur `vercel-runtime==0.14.0` si Vercel detecte quand meme un runtime Python.
+Vercel doit construire uniquement l'app Vite statique. Le fichier `vercel.json` a la racine force le build depuis `webapp/`, `.vercelignore` exclut le backend Python, et `.python-version` est en `3.12` pour eviter l'erreur `vercel-runtime==0.14.0` si Vercel detecte quand meme un runtime Python.
 
 Dans le dashboard Vercel, le reglage recommande reste :
 
@@ -59,8 +59,10 @@ Dans le dashboard Vercel, le reglage recommande reste :
 Root Directory: webapp
 Install Command: npm install
 Build Command: npm run build
+Output Directory: dist
+Framework Preset: Vite
 ```
 
-Le backend FastAPI doit rester sur Railway, Render, VPS ou Docker, puis son URL publique doit etre mise dans `NEXT_PUBLIC_API_BASE_URL`.
+Le backend FastAPI doit rester sur Railway, Render, VPS ou Docker, puis son URL publique doit etre mise dans `VITE_API_BASE_URL`.
 
 Si Vercel affiche encore l'ancienne erreur Python, relance un deploy avec cache vide dans le dashboard Vercel, puis verifie que le projet Git utilise bien la derniere version de `.python-version`.
