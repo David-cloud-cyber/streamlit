@@ -85,20 +85,77 @@ export type AssetList = {
   files: AssetFile[];
 };
 
+export type MeResponse = {
+  authenticated: boolean;
+  auth_enabled: boolean;
+  id?: string;
+  email?: string;
+};
+
+export type AiProviderKind = "openai" | "anthropic";
+
+export type AiProvider = {
+  id: string;
+  user_id?: string;
+  provider: AiProviderKind;
+  label: string;
+  model_name: string;
+  base_url: string;
+  enabled: boolean;
+  is_default: boolean;
+  key_source: "byok" | "platform";
+  last_used_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type AiProviderList = {
+  providers: AiProvider[];
+  auth_enabled: boolean;
+};
+
+export type AiQuota = {
+  key_source: string;
+  limit: number;
+  used: number;
+  remaining: number;
+  auth_enabled: boolean;
+};
+
+export type AiProviderInput = {
+  provider: AiProviderKind;
+  api_key: string;
+  label?: string;
+  model_name?: string;
+  base_url?: string;
+  is_default?: boolean;
+};
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ||
   "http://localhost:8080";
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+function authHeaders(token?: string): HeadersInit {
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+async function request<T>(
+  path: string,
+  init?: RequestInit,
+  token?: string
+): Promise<T> {
+  const isFormData = init?.body instanceof FormData;
+  const headers = new Headers(init?.headers);
+  if (!isFormData) {
+    headers.set("Content-Type", "application/json");
+  }
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
-    headers:
-      init?.body instanceof FormData
-        ? init.headers
-        : {
-            "Content-Type": "application/json",
-            ...init?.headers
-          }
+    headers
   });
 
   const payload = (await response.json().catch(() => null)) as ApiResponse<T> | null;
@@ -113,9 +170,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   baseUrl: API_BASE_URL,
-  async ping(): Promise<boolean> {
+  async ping(token?: string): Promise<boolean> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/tasks?page=1&page_size=1`);
+      const response = await fetch(`${API_BASE_URL}/api/v1/tasks?page=1&page_size=1`, {
+        headers: authHeaders(token)
+      });
       if (!response.ok) return false;
       const payload = (await response.json().catch(() => null)) as ApiResponse<TaskList> | null;
       return Boolean(payload && payload.status < 400);
@@ -131,62 +190,100 @@ export const api = {
       return false;
     }
   },
+  getMe(token?: string) {
+    return request<MeResponse>("/api/v1/me", undefined, token);
+  },
+  getAiProviders(token?: string) {
+    return request<AiProviderList>("/api/v1/ai/providers", undefined, token);
+  },
+  createAiProvider(input: AiProviderInput, token?: string) {
+    return request<AiProvider>("/api/v1/ai/providers", {
+      method: "POST",
+      body: JSON.stringify(input)
+    }, token);
+  },
+  updateAiProvider(providerId: string, input: Partial<AiProviderInput> & {
+    enabled?: boolean;
+    is_default?: boolean;
+  }, token?: string) {
+    return request<AiProvider>(`/api/v1/ai/providers/${providerId}`, {
+      method: "PATCH",
+      body: JSON.stringify(input)
+    }, token);
+  },
+  deleteAiProvider(providerId: string, token?: string) {
+    return request<{ deleted: boolean }>(`/api/v1/ai/providers/${providerId}`, {
+      method: "DELETE"
+    }, token);
+  },
+  getAiQuota(token?: string) {
+    return request<AiQuota>("/api/v1/ai/quota", undefined, token);
+  },
   createScript(input: {
     video_subject: string;
     video_language: string;
     paragraph_number: number;
-  }) {
+  }, token?: string) {
     return request<ScriptResponse>("/api/v1/scripts", {
       method: "POST",
       body: JSON.stringify(input)
-    });
+    }, token);
   },
   createTerms(input: {
     video_subject: string;
     video_script: string;
     amount: number;
-  }) {
+  }, token?: string) {
     return request<TermsResponse>("/api/v1/terms", {
       method: "POST",
       body: JSON.stringify(input)
-    });
+    }, token);
   },
-  createVideo(input: VideoRequest) {
+  createVideo(input: VideoRequest, token?: string) {
     return request<CreateTaskResponse>("/api/v1/videos", {
       method: "POST",
       body: JSON.stringify(input)
-    });
+    }, token);
   },
-  getTasks(page = 1, pageSize = 10) {
-    return request<TaskList>(`/api/v1/tasks?page=${page}&page_size=${pageSize}`);
+  getTasks(page = 1, pageSize = 10, token?: string) {
+    return request<TaskList>(`/api/v1/tasks?page=${page}&page_size=${pageSize}`, undefined, token);
   },
-  getTask(taskId: string) {
-    return request<TaskRecord>(`/api/v1/tasks/${taskId}`);
+  getTask(taskId: string, token?: string) {
+    return request<TaskRecord>(`/api/v1/tasks/${taskId}`, undefined, token);
   },
-  deleteTask(taskId: string) {
-    return request<null>(`/api/v1/tasks/${taskId}`, { method: "DELETE" });
+  deleteTask(taskId: string, token?: string) {
+    return request<null>(`/api/v1/tasks/${taskId}`, { method: "DELETE" }, token);
   },
-  getMaterials() {
-    return request<AssetList>("/api/v1/video_materials");
+  getMaterials(token?: string) {
+    return request<AssetList>("/api/v1/video_materials", undefined, token);
   },
-  uploadMaterial(file: File) {
+  uploadMaterial(file: File, token?: string) {
     const data = new FormData();
     data.append("file", file);
     return request<{ file: string }>("/api/v1/video_materials", {
       method: "POST",
       body: data
-    });
+    }, token);
   },
-  getMusics() {
-    return request<AssetList>("/api/v1/musics");
+  getMusics(token?: string) {
+    return request<AssetList>("/api/v1/musics", undefined, token);
   },
-  uploadMusic(file: File) {
+  uploadMusic(file: File, token?: string) {
     const data = new FormData();
     data.append("file", file);
     return request<{ file: string }>("/api/v1/musics", {
       method: "POST",
       body: data
+    }, token);
+  },
+  async fetchMediaBlob(url: string, token?: string) {
+    const response = await fetch(absoluteMediaUrl(url), {
+      headers: authHeaders(token)
     });
+    if (!response.ok) {
+      throw new Error(`Media unavailable (${response.status})`);
+    }
+    return response.blob();
   }
 };
 

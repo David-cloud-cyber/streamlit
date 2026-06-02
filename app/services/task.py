@@ -13,7 +13,7 @@ from app.services import state as sm
 from app.utils import utils
 
 
-def generate_script(task_id, params):
+def generate_script(task_id, params, user_id=None):
     logger.info("\n\n## generating video script")
     video_script = params.video_script.strip()
     if not video_script:
@@ -21,6 +21,8 @@ def generate_script(task_id, params):
             video_subject=params.video_subject,
             language=params.video_language,
             paragraph_number=params.paragraph_number,
+            user_id=user_id,
+            task_id=task_id,
         )
     else:
         logger.debug(f"video script: \n{video_script}")
@@ -33,12 +35,16 @@ def generate_script(task_id, params):
     return video_script
 
 
-def generate_terms(task_id, params, video_script):
+def generate_terms(task_id, params, video_script, user_id=None):
     logger.info("\n\n## generating video terms")
     video_terms = params.video_terms
     if not video_terms:
         video_terms = llm.generate_terms(
-            video_subject=params.video_subject, video_script=video_script, amount=5
+            video_subject=params.video_subject,
+            video_script=video_script,
+            amount=5,
+            user_id=user_id,
+            task_id=task_id,
         )
     else:
         if isinstance(video_terms, str):
@@ -245,12 +251,12 @@ def generate_final_videos(
     return final_video_paths, combined_video_paths
 
 
-def start(task_id, params: VideoParams, stop_at: str = "video"):
+def start(task_id, params: VideoParams, stop_at: str = "video", user_id=None):
     logger.info(f"start task: {task_id}, stop_at: {stop_at}")
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
 
     # 1. Generate script
-    video_script = generate_script(task_id, params)
+    video_script = generate_script(task_id, params, user_id=user_id)
     if not video_script or "Error: " in video_script:
         sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
         return
@@ -266,7 +272,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
     # 2. Generate terms
     video_terms = ""
     if params.video_source != "local":
-        video_terms = generate_terms(task_id, params, video_script)
+        video_terms = generate_terms(task_id, params, video_script, user_id=user_id)
         if not video_terms:
             sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
             return

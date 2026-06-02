@@ -12,6 +12,7 @@ from loguru import logger
 from app.config import config
 from app.models.exception import HttpException
 from app.router import root_api_router
+from app.services import supabase_auth
 from app.utils import utils
 
 
@@ -64,9 +65,12 @@ app.add_middleware(
 )
 
 task_dir = utils.task_dir()
-app.mount(
-    "/tasks", StaticFiles(directory=task_dir, html=True, follow_symlink=True), name=""
-)
+if not supabase_auth.is_auth_enabled():
+    app.mount(
+        "/tasks",
+        StaticFiles(directory=task_dir, html=True, follow_symlink=True),
+        name="",
+    )
 
 public_dir = utils.public_dir()
 app.mount("/", StaticFiles(directory=public_dir, html=True), name="")

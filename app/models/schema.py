@@ -176,6 +176,40 @@ class BaseResponse(BaseModel):
     data: Any = None
 
 
+class AiProviderRequest(BaseModel):
+    provider: str
+    api_key: str
+    label: Optional[str] = None
+    model_name: Optional[str] = None
+    base_url: Optional[str] = None
+    is_default: Optional[bool] = True
+
+
+class AiProviderUpdateRequest(BaseModel):
+    label: Optional[str] = None
+    api_key: Optional[str] = None
+    model_name: Optional[str] = None
+    base_url: Optional[str] = None
+    enabled: Optional[bool] = None
+    is_default: Optional[bool] = None
+
+
+class AiProviderResponse(BaseResponse):
+    pass
+
+
+class AiProviderListResponse(BaseResponse):
+    pass
+
+
+class AiQuotaResponse(BaseResponse):
+    pass
+
+
+class MeResponse(BaseResponse):
+    pass
+
+
 class TaskVideoRequest(VideoParams, BaseModel):
     pass
 

@@ -1,39 +1,77 @@
 "use client";
 
+import type { Session } from "@supabase/supabase-js";
 import {
   Activity,
   AlertCircle,
   CheckCircle2,
   Clapperboard,
+  Cpu,
   Download,
   FileAudio,
   Film,
   FolderUp,
   Gauge,
   ImagePlus,
-  LayoutDashboard,
+  KeyRound,
   Loader2,
+  Lock,
+  LogIn,
+  LogOut,
   Mic2,
   Music2,
   Play,
   RefreshCcw,
   Settings,
+  ShieldCheck,
   Sparkles,
   Trash2,
   UploadCloud,
+  User,
   Wand2
 } from "lucide-react";
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import type { ChangeEvent, FormEvent, ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   absoluteMediaUrl,
   api,
+  AiProvider,
+  AiProviderInput,
+  AiProviderKind,
+  AiQuota,
   AssetFile,
   TaskRecord,
   VideoRequest
 } from "@/lib/api";
+import { createSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase";
 
 type ViewKey = "studio" | "tasks" | "media" | "settings";
 type Toast = { tone: "success" | "error" | "info"; message: string } | null;
+type AuthMode = "signin" | "signup";
+
+const supabaseEnabled = isSupabaseConfigured();
+
+const providerDefaults: Record<AiProviderKind, { label: string; model: string; baseUrl: string }> = {
+  openai: {
+    label: "OpenAI personnel",
+    model: "gpt-4o-mini",
+    baseUrl: "https://api.openai.com/v1"
+  },
+  anthropic: {
+    label: "Claude personnel",
+    model: "anthropic/claude-3-5-haiku-20241022",
+    baseUrl: ""
+  }
+};
+
+const initialProviderForm: AiProviderInput = {
+  provider: "openai",
+  label: providerDefaults.openai.label,
+  api_key: "",
+  model_name: providerDefaults.openai.model,
+  base_url: providerDefaults.openai.baseUrl,
+  is_default: true
+};
 
 const initialForm: VideoRequest = {
   video_subject: "",
@@ -93,10 +131,22 @@ function fileSize(size: number) {
 }
 
 export default function Home() {
+  const supabase = useMemo(
+    () => (supabaseEnabled ? createSupabaseBrowserClient() : null),
+    []
+  );
+  const [authReady, setAuthReady] = useState(!supabaseEnabled);
+  const [session, setSession] = useState<Session | null>(null);
+  const [authMode, setAuthMode] = useState<AuthMode>("signin");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
   const [view, setView] = useState<ViewKey>("studio");
   const [apiOnline, setApiOnline] = useState(false);
   const [apiChecking, setApiChecking] = useState(true);
   const [form, setForm] = useState<VideoRequest>(initialForm);
+  const [providerForm, setProviderForm] = useState<AiProviderInput>(initialProviderForm);
+  const [providers, setProviders] = useState<AiProvider[]>([]);
+  const [quota, setQuota] = useState<AiQuota | null>(null);
   const [toast, setToast] = useState<Toast>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [activeTaskId, setActiveTaskId] = useState("");
@@ -105,7 +155,9 @@ export default function Home() {
   const [materials, setMaterials] = useState<AssetFile[]>([]);
   const [musics, setMusics] = useState<AssetFile[]>([]);
 
+  const accessToken = session?.access_token;
   const hasPrompt = Boolean(form.video_subject.trim() || form.video_script.trim());
+  const activeProvider = providers.find((provider) => provider.enabled && provider.is_default) || providers.find((provider) => provider.enabled);
   const terms = useMemo(
     () =>
       (form.video_terms || "")
@@ -115,9 +167,21 @@ export default function Home() {
     [form.video_terms]
   );
   const finalVideos = activeTask?.videos || [];
+  const quotaLabel = quota?.auth_enabled
+    ? `${quota.remaining}/${quota.limit} generations gratuites`
+    : "Mode local";
+  const aiMode = activeProvider
+    ? `${activeProvider.label} (${activeProvider.provider === "anthropic" ? "Claude" : "OpenAI"})`
+    : quota?.remaining
+      ? "Quota gratuit OpenRouter"
+      : "Aucune cle IA active";
 
   function patchForm(patch: Partial<VideoRequest>) {
     setForm((current) => ({ ...current, ...patch }));
+  }
+
+  function patchProviderForm(patch: Partial<AiProviderInput>) {
+    setProviderForm((current) => ({ ...current, ...patch }));
   }
 
   function showToast(next: Toast) {
@@ -127,16 +191,58 @@ export default function Home() {
     }
   }
 
+  useEffect(() => {
+    if (!supabase) {
+      setAuthReady(true);
+      return;
+    }
+
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setAuthReady(true);
+    });
+
+    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+      setAuthReady(true);
+    });
+
+    return () => data.subscription.unsubscribe();
+  }, [supabase]);
+
   async function refreshApi() {
     setApiChecking(true);
-    const ok = await api.ping();
+    const ok = await api.ping(accessToken);
     setApiOnline(ok);
     setApiChecking(false);
   }
 
-  async function refreshTasks() {
+  async function refreshSaasState() {
+    if (!accessToken) {
+      setProviders([]);
+      setQuota(null);
+      return;
+    }
+
     try {
-      const data = await api.getTasks(1, 12);
+      const [providerData, quotaData] = await Promise.all([
+        api.getAiProviders(accessToken),
+        api.getAiQuota(accessToken)
+      ]);
+      setProviders(providerData.providers || []);
+      setQuota(quotaData);
+    } catch (error) {
+      showToast({
+        tone: "error",
+        message: error instanceof Error ? error.message : "Impossible de charger les reglages IA"
+      });
+    }
+  }
+
+  async function refreshTasks() {
+    if (supabaseEnabled && !accessToken) return;
+    try {
+      const data = await api.getTasks(1, 12, accessToken);
       setTasks(data.tasks || []);
     } catch (error) {
       showToast({
@@ -147,30 +253,33 @@ export default function Home() {
   }
 
   async function refreshAssets() {
+    if (supabaseEnabled && !accessToken) return;
     try {
       const [materialData, musicData] = await Promise.all([
-        api.getMaterials(),
-        api.getMusics()
+        api.getMaterials(accessToken),
+        api.getMusics(accessToken)
       ]);
       setMaterials(materialData.files || []);
       setMusics(musicData.files || []);
     } catch {
-      // Asset endpoints are helpful, but the studio can still be used without them.
+      // Asset endpoints are optional for the studio.
     }
   }
 
   useEffect(() => {
+    if (!authReady) return;
     refreshApi();
     refreshTasks();
     refreshAssets();
-  }, []);
+    refreshSaasState();
+  }, [authReady, accessToken]);
 
   useEffect(() => {
     if (!activeTaskId) return;
     let cancelled = false;
     const tick = async () => {
       try {
-        const task = await api.getTask(activeTaskId);
+        const task = await api.getTask(activeTaskId, accessToken);
         if (!cancelled) {
           setActiveTask(task);
           if (task.state === 1 || task.state === -1) {
@@ -193,7 +302,47 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [activeTaskId]);
+  }, [activeTaskId, accessToken]);
+
+  async function submitAuth(event: FormEvent) {
+    event.preventDefault();
+    if (!supabase) return;
+    setBusy("auth");
+    try {
+      if (authMode === "signup") {
+        const { error } = await supabase.auth.signUp({
+          email: authEmail,
+          password: authPassword
+        });
+        if (error) throw error;
+        showToast({ tone: "success", message: "Compte cree. Verifie ton email si Supabase le demande." });
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: authEmail,
+          password: authPassword
+        });
+        if (error) throw error;
+        showToast({ tone: "success", message: "Session ouverte." });
+      }
+    } catch (error) {
+      showToast({
+        tone: "error",
+        message: error instanceof Error ? error.message : "Connexion impossible"
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function signOut() {
+    if (!supabase) return;
+    await supabase.auth.signOut();
+    setProviders([]);
+    setQuota(null);
+    setTasks([]);
+    setActiveTask(undefined);
+    setActiveTaskId("");
+  }
 
   async function generateScript() {
     if (!form.video_subject.trim()) {
@@ -206,14 +355,14 @@ export default function Home() {
         video_subject: form.video_subject,
         video_language: form.video_language,
         paragraph_number: form.paragraph_number
-      });
+      }, accessToken);
       patchForm({ video_script: data.video_script });
+      await refreshSaasState();
       showToast({ tone: "success", message: "Script genere." });
     } catch (error) {
       showToast({
         tone: "error",
-        message:
-          error instanceof Error ? error.message : "Generation du script impossible"
+        message: error instanceof Error ? error.message : "Generation du script impossible"
       });
     } finally {
       setBusy(null);
@@ -231,14 +380,14 @@ export default function Home() {
         video_subject: form.video_subject,
         video_script: form.video_script,
         amount: 5
-      });
+      }, accessToken);
       patchForm({ video_terms: data.video_terms.join(", ") });
+      await refreshSaasState();
       showToast({ tone: "success", message: "Mots-cles generes." });
     } catch (error) {
       showToast({
         tone: "error",
-        message:
-          error instanceof Error ? error.message : "Generation des mots-cles impossible"
+        message: error instanceof Error ? error.message : "Generation des mots-cles impossible"
       });
     } finally {
       setBusy(null);
@@ -254,18 +403,88 @@ export default function Home() {
       });
       return;
     }
+    if (supabaseEnabled && !activeProvider && quota?.remaining === 0) {
+      showToast({
+        tone: "error",
+        message: "Ajoute une cle OpenAI/Claude ou attends le prochain quota gratuit."
+      });
+      return;
+    }
     setBusy("video");
     try {
-      const task = await api.createVideo(form);
+      const task = await api.createVideo(form, accessToken);
       setActiveTaskId(task.task_id);
       setActiveTask({ task_id: task.task_id, state: 4, progress: 5 });
       setView("tasks");
+      await refreshSaasState();
       showToast({ tone: "success", message: "Tache video creee." });
     } catch (error) {
       showToast({
         tone: "error",
-        message:
-          error instanceof Error ? error.message : "Generation video impossible"
+        message: error instanceof Error ? error.message : "Generation video impossible"
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function saveProvider(event: FormEvent) {
+    event.preventDefault();
+    if (!accessToken) {
+      showToast({ tone: "error", message: "Connecte-toi avant d'ajouter une cle." });
+      return;
+    }
+    if (!providerForm.api_key.trim()) {
+      showToast({ tone: "error", message: "La cle API est obligatoire." });
+      return;
+    }
+    setBusy("provider");
+    try {
+      await api.createAiProvider(providerForm, accessToken);
+      setProviderForm({
+        ...providerForm,
+        api_key: ""
+      });
+      await refreshSaasState();
+      showToast({ tone: "success", message: "Cle IA chiffree et activee." });
+    } catch (error) {
+      showToast({
+        tone: "error",
+        message: error instanceof Error ? error.message : "Enregistrement impossible"
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function setDefaultProvider(provider: AiProvider) {
+    if (!accessToken) return;
+    setBusy(`default-${provider.id}`);
+    try {
+      await api.updateAiProvider(provider.id, { is_default: true, enabled: true }, accessToken);
+      await refreshSaasState();
+      showToast({ tone: "success", message: "Provider actif mis a jour." });
+    } catch (error) {
+      showToast({
+        tone: "error",
+        message: error instanceof Error ? error.message : "Mise a jour impossible"
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function deleteProvider(providerId: string) {
+    if (!accessToken) return;
+    setBusy(`provider-delete-${providerId}`);
+    try {
+      await api.deleteAiProvider(providerId, accessToken);
+      await refreshSaasState();
+      showToast({ tone: "success", message: "Cle IA supprimee." });
+    } catch (error) {
+      showToast({
+        tone: "error",
+        message: error instanceof Error ? error.message : "Suppression impossible"
       });
     } finally {
       setBusy(null);
@@ -281,9 +500,9 @@ export default function Home() {
     setBusy(kind);
     try {
       if (kind === "material") {
-        await api.uploadMaterial(file);
+        await api.uploadMaterial(file, accessToken);
       } else {
-        await api.uploadMusic(file);
+        await api.uploadMusic(file, accessToken);
       }
       await refreshAssets();
       showToast({ tone: "success", message: "Fichier importe." });
@@ -301,7 +520,7 @@ export default function Home() {
   async function deleteTask(taskId: string) {
     setBusy(`delete-${taskId}`);
     try {
-      await api.deleteTask(taskId);
+      await api.deleteTask(taskId, accessToken);
       if (activeTaskId === taskId) {
         setActiveTaskId("");
         setActiveTask(undefined);
@@ -316,6 +535,41 @@ export default function Home() {
     } finally {
       setBusy(null);
     }
+  }
+
+  function changeProviderKind(provider: AiProviderKind) {
+    const defaults = providerDefaults[provider];
+    setProviderForm({
+      ...providerForm,
+      provider,
+      label: defaults.label,
+      model_name: defaults.model,
+      base_url: defaults.baseUrl
+    });
+  }
+
+  if (!authReady) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-page">
+        <Loader2 className="animate-spin text-brand-700" size={28} />
+      </main>
+    );
+  }
+
+  if (supabaseEnabled && !session) {
+    return (
+      <AuthScreen
+        mode={authMode}
+        email={authEmail}
+        password={authPassword}
+        busy={busy === "auth"}
+        toast={toast}
+        onModeChange={setAuthMode}
+        onEmailChange={setAuthEmail}
+        onPasswordChange={setAuthPassword}
+        onSubmit={submitAuth}
+      />
+    );
   }
 
   return (
@@ -362,6 +616,14 @@ export default function Home() {
             Tester l'API
           </button>
         </div>
+
+        <div className="mt-4 rounded-xl border border-line bg-white p-4">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-muted">
+            IA
+          </p>
+          <p className="mt-2 text-sm font-black text-ink">{aiMode}</p>
+          <p className="mt-1 text-sm font-semibold text-muted">{quotaLabel}</p>
+        </div>
       </aside>
 
       <section className="main-shell">
@@ -380,7 +642,17 @@ export default function Home() {
                 <Gauge size={15} />
                 {apiChecking ? "Verification..." : apiOnline ? "API connectee" : "API hors ligne"}
               </span>
+              <span className="badge">
+                <User size={15} />
+                {session?.user.email || "Local"}
+              </span>
               <span className="badge">FR</span>
+              {supabaseEnabled && (
+                <button className="btn btn-secondary" onClick={signOut}>
+                  <LogOut size={17} />
+                  Quitter
+                </button>
+              )}
               <button className="btn btn-primary" onClick={() => setView("studio")}>
                 <Sparkles size={17} />
                 Nouveau projet
@@ -661,12 +933,19 @@ export default function Home() {
                   <Metric label="Sujet" value={form.video_subject || "Non renseigne"} />
                   <Metric label="Format" value={form.video_aspect} />
                   <Metric label="Source" value={form.video_source} />
+                  <Metric label="IA" value={aiMode} />
+                  <Metric label="Quota" value={quotaLabel} />
                   <Metric label="Mots-cles" value={terms.length ? `${terms.length} termes` : "Aucun"} />
                   <Metric label="Sortie" value={`${form.video_count} video(s)`} />
                 </div>
                 {!apiOnline && (
                   <p className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-700">
-                    L'API FastAPI ne repond pas encore. Lance le backend sur le port 8080 avant une generation reelle.
+                    L'API FastAPI ne repond pas encore. Lance le backend ou configure NEXT_PUBLIC_API_BASE_URL.
+                  </p>
+                )}
+                {supabaseEnabled && !activeProvider && quota?.remaining === 0 && (
+                  <p className="mt-5 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-700">
+                    Ton quota gratuit est epuise. Ajoute une cle OpenAI ou Claude dans Reglages.
                   </p>
                 )}
                 <button
@@ -742,17 +1021,7 @@ export default function Home() {
                       </div>
                       {finalVideos.length > 0 ? (
                         finalVideos.map((video) => (
-                          <div key={video} className="space-y-3">
-                            <video
-                              className="aspect-video w-full rounded-xl border border-line bg-black"
-                              controls
-                              src={absoluteMediaUrl(video)}
-                            />
-                            <a className="btn btn-secondary w-full" href={absoluteMediaUrl(video)} target="_blank">
-                              <Download size={17} />
-                              Telecharger / ouvrir
-                            </a>
-                          </div>
+                          <SecureVideo key={video} src={video} token={accessToken} />
                         ))
                       ) : (
                         <EmptyState text="La video apparaitra ici quand la tache sera terminee." />
@@ -792,22 +1061,122 @@ export default function Home() {
           )}
 
           {view === "settings" && (
-            <section className="surface rounded-2xl p-5">
-              <SectionTitle
-                icon={<Settings size={20} />}
-                title="Reglages"
-                subtitle="Configuration frontend et rappel des dependances backend."
-              />
-              <div className="mt-5 grid gap-4 lg:grid-cols-3">
-                <Metric label="API configuree" value={api.baseUrl} />
-                <Metric label="Interface" value="Next.js + Streamlit fallback" />
-                <Metric label="Auth" value="Desactivee dans cette version" />
+            <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+              <div className="surface rounded-2xl p-5">
+                <SectionTitle
+                  icon={<KeyRound size={20} />}
+                  title="Cles IA personnelles"
+                  subtitle="Ajoute une cle OpenAI ou Claude. Elle est envoyee au backend et stockee dans Supabase Vault."
+                />
+                <form className="mt-5 space-y-4" onSubmit={saveProvider}>
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <Field label="Provider">
+                      <select
+                        className="field"
+                        value={providerForm.provider}
+                        onChange={(event) => changeProviderKind(event.target.value as AiProviderKind)}
+                      >
+                        <option value="openai">OpenAI</option>
+                        <option value="anthropic">Claude / Anthropic</option>
+                      </select>
+                    </Field>
+                    <Field label="Nom visible">
+                      <input
+                        className="field"
+                        value={providerForm.label || ""}
+                        onChange={(event) => patchProviderForm({ label: event.target.value })}
+                      />
+                    </Field>
+                    <Field label="Modele">
+                      <input
+                        className="field"
+                        value={providerForm.model_name || ""}
+                        onChange={(event) => patchProviderForm({ model_name: event.target.value })}
+                      />
+                    </Field>
+                    <Field label="Base URL">
+                      <input
+                        className="field"
+                        value={providerForm.base_url || ""}
+                        placeholder={providerForm.provider === "anthropic" ? "Vide pour Claude via LiteLLM" : "https://api.openai.com/v1"}
+                        onChange={(event) => patchProviderForm({ base_url: event.target.value })}
+                      />
+                    </Field>
+                  </div>
+                  <Field label="Cle API">
+                    <input
+                      className="field"
+                      type="password"
+                      autoComplete="off"
+                      value={providerForm.api_key}
+                      placeholder="sk-... ou cle Anthropic"
+                      onChange={(event) => patchProviderForm({ api_key: event.target.value })}
+                    />
+                  </Field>
+                  <button className="btn btn-primary" disabled={busy === "provider"}>
+                    {busy === "provider" ? <Loader2 className="animate-spin" size={17} /> : <ShieldCheck size={17} />}
+                    Chiffrer et activer
+                  </button>
+                </form>
+
+                <div className="mt-6 space-y-3">
+                  {providers.length === 0 && (
+                    <EmptyState text="Aucune cle personnelle. Le quota gratuit OpenRouter sera utilise si disponible." />
+                  )}
+                  {providers.map((provider) => (
+                    <div key={provider.id} className="rounded-xl border border-line bg-white p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="font-black text-ink">{provider.label}</p>
+                          <p className="text-sm font-semibold text-muted">
+                            {provider.provider === "anthropic" ? "Claude" : "OpenAI"} - {provider.model_name}
+                          </p>
+                        </div>
+                        <span className="badge">
+                          <Lock size={14} />
+                          Vault
+                        </span>
+                      </div>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button
+                          className="btn btn-secondary"
+                          type="button"
+                          onClick={() => setDefaultProvider(provider)}
+                          disabled={provider.is_default || busy === `default-${provider.id}`}
+                        >
+                          <CheckCircle2 size={17} />
+                          {provider.is_default ? "Actif" : "Utiliser"}
+                        </button>
+                        <button
+                          className="btn btn-danger"
+                          type="button"
+                          onClick={() => deleteProvider(provider.id)}
+                          disabled={busy === `provider-delete-${provider.id}`}
+                        >
+                          <Trash2 size={17} />
+                          Supprimer
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="mt-5 rounded-xl border border-line bg-white p-4">
-                <p className="font-black text-ink">Cles requises cote backend</p>
-                <p className="mt-2 text-sm font-semibold text-muted">
-                  Renseigne les cles LLM, Pexels ou Pixabay dans la configuration Python avant une generation complete.
-                  Cette interface ne stocke pas de secret.
+
+              <div className="surface rounded-2xl p-5">
+                <SectionTitle
+                  icon={<Cpu size={20} />}
+                  title="Mode SaaS"
+                  subtitle="Fallback OpenRouter et configuration de deploiement."
+                />
+                <div className="mt-5 space-y-3">
+                  <Metric label="Utilisateur" value={session?.user.email || "Mode local"} />
+                  <Metric label="IA active" value={aiMode} />
+                  <Metric label="Quota gratuit" value={quotaLabel} />
+                  <Metric label="API configuree" value={api.baseUrl} />
+                  <Metric label="Vercel" value="Root Directory: webapp" />
+                </div>
+                <p className="mt-5 rounded-xl border border-line bg-white p-4 text-sm font-semibold text-muted">
+                  La cle OpenRouter plateforme doit rester cote Supabase/backend. Les utilisateurs gratuits peuvent generer via quota; les utilisateurs avances ajoutent leur propre cle OpenAI ou Claude ici.
                 </p>
               </div>
             </section>
@@ -818,12 +1187,160 @@ export default function Home() {
   );
 }
 
+function AuthScreen({
+  mode,
+  email,
+  password,
+  busy,
+  toast,
+  onModeChange,
+  onEmailChange,
+  onPasswordChange,
+  onSubmit
+}: {
+  mode: AuthMode;
+  email: string;
+  password: string;
+  busy: boolean;
+  toast: Toast;
+  onModeChange: (mode: AuthMode) => void;
+  onEmailChange: (value: string) => void;
+  onPasswordChange: (value: string) => void;
+  onSubmit: (event: FormEvent) => void;
+}) {
+  return (
+    <main className="grid min-h-screen place-items-center bg-page px-4 py-8">
+      <section className="surface w-full max-w-md rounded-2xl p-6">
+        <div className="mb-6 flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-600 text-white">
+            <Film size={22} />
+          </div>
+          <div>
+            <p className="text-sm font-black uppercase tracking-[0.16em] text-brand-700">
+              MoneyPrinter
+            </p>
+            <h1 className="text-xl font-black text-ink">Connexion SaaS</h1>
+          </div>
+        </div>
+
+        {toast && (
+          <div
+            className={`mb-5 rounded-xl border px-4 py-3 text-sm font-bold ${
+              toast.tone === "success"
+                ? "border-green-200 bg-green-50 text-green-700"
+                : toast.tone === "error"
+                  ? "border-red-200 bg-red-50 text-red-700"
+                  : "border-brand-100 bg-brand-50 text-brand-700"
+            }`}
+          >
+            {toast.message}
+          </div>
+        )}
+
+        <form className="space-y-4" onSubmit={onSubmit}>
+          <Field label="Email">
+            <input
+              className="field"
+              type="email"
+              value={email}
+              onChange={(event) => onEmailChange(event.target.value)}
+              required
+            />
+          </Field>
+          <Field label="Mot de passe">
+            <input
+              className="field"
+              type="password"
+              minLength={6}
+              value={password}
+              onChange={(event) => onPasswordChange(event.target.value)}
+              required
+            />
+          </Field>
+          <button className="btn btn-primary w-full" disabled={busy}>
+            {busy ? <Loader2 className="animate-spin" size={17} /> : <LogIn size={17} />}
+            {mode === "signup" ? "Creer mon compte" : "Se connecter"}
+          </button>
+        </form>
+
+        <button
+          className="btn btn-secondary mt-4 w-full"
+          type="button"
+          onClick={() => onModeChange(mode === "signin" ? "signup" : "signin")}
+        >
+          {mode === "signin" ? "Creer un compte" : "J'ai deja un compte"}
+        </button>
+      </section>
+    </main>
+  );
+}
+
+function SecureVideo({ src, token }: { src: string; token?: string }) {
+  const [objectUrl, setObjectUrl] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let nextUrl = "";
+    let cancelled = false;
+
+    api.fetchMediaBlob(src, token)
+      .then((blob) => {
+        if (cancelled) return;
+        nextUrl = URL.createObjectURL(blob);
+        setObjectUrl(nextUrl);
+        setError("");
+      })
+      .catch((fetchError) => {
+        if (cancelled) return;
+        setError(fetchError instanceof Error ? fetchError.message : "Preview indisponible");
+      });
+
+    return () => {
+      cancelled = true;
+      if (nextUrl) URL.revokeObjectURL(nextUrl);
+    };
+  }, [src, token]);
+
+  function download() {
+    const url = objectUrl || absoluteMediaUrl(src);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = src.split("/").pop() || "video.mp4";
+    anchor.target = "_blank";
+    anchor.click();
+  }
+
+  if (error) {
+    return <EmptyState text={error} />;
+  }
+
+  return (
+    <div className="space-y-3">
+      {objectUrl ? (
+        <video
+          className="aspect-video w-full rounded-xl border border-line bg-black"
+          controls
+          src={objectUrl}
+        />
+      ) : (
+        <div className="grid aspect-video w-full place-items-center rounded-xl border border-line bg-white">
+          <Loader2 className="animate-spin text-brand-700" size={24} />
+        </div>
+      )}
+      <button className="btn btn-secondary w-full" type="button" onClick={download}>
+        <Download size={17} />
+        Telecharger / ouvrir
+      </button>
+    </div>
+  );
+}
+
 function SectionTitle({
   icon,
   title,
   subtitle
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   title: string;
   subtitle: string;
 }) {
@@ -840,7 +1357,7 @@ function SectionTitle({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="space-y-2">
       <span className="field-label">{label}</span>
@@ -875,7 +1392,7 @@ function AssetPanel({
   onUpload,
   busy
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   title: string;
   subtitle: string;
   files: AssetFile[];

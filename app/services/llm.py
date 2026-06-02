@@ -9,10 +9,48 @@ from openai import AzureOpenAI, OpenAI
 from openai.types.chat import ChatCompletion
 
 from app.config import config
+from app.services import supabase_ai
 
 _max_retries = 5
 _DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
 _DEPRECATED_GEMINI_MODELS = {"gemini-pro", "gemini-1.0-pro"}
+
+
+def _generate_response_with_context(
+    prompt: str, ai_context: supabase_ai.AiRuntimeContext
+) -> str:
+    logger.info(
+        f"llm provider: {ai_context.provider}, key_source: {ai_context.key_source}"
+    )
+
+    if ai_context.provider == "anthropic":
+        import litellm
+
+        response = litellm.completion(
+            model=ai_context.model_name,
+            messages=[{"role": "user", "content": prompt}],
+            api_key=ai_context.api_key,
+            drop_params=True,
+        )
+        return _extract_chat_completion_text(response, ai_context.provider)
+
+    if ai_context.provider in {"openai", "openrouter"}:
+        base_url = ai_context.base_url
+        if not base_url:
+            base_url = (
+                "https://openrouter.ai/api/v1"
+                if ai_context.provider == "openrouter"
+                else "https://api.openai.com/v1"
+            )
+
+        client = OpenAI(api_key=ai_context.api_key, base_url=base_url)
+        response = client.chat.completions.create(
+            model=ai_context.model_name,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return _extract_chat_completion_text(response, ai_context.provider)
+
+    raise ValueError(f"unsupported SaaS AI provider: {ai_context.provider}")
 
 
 def _normalize_text_response(content, llm_provider: str) -> str:
@@ -52,8 +90,37 @@ def _extract_chat_completion_text(response, llm_provider: str) -> str:
     return _normalize_text_response(content, llm_provider)
 
 
-def _generate_response(prompt: str) -> str:
+def _generate_response(
+    prompt: str,
+    user_id: str | None = None,
+    feature: str = "llm",
+    task_id: str | None = None,
+) -> str:
     try:
+        ai_context = supabase_ai.resolve_ai_context(
+            user_id, feature=feature, task_id=task_id
+        )
+        if ai_context:
+            try:
+                content = _generate_response_with_context(prompt, ai_context)
+                supabase_ai.record_usage_event(
+                    user_id or "",
+                    ai_context,
+                    feature=feature,
+                    task_id=task_id,
+                    status="success",
+                )
+                return content
+            except Exception:
+                supabase_ai.record_usage_event(
+                    user_id or "",
+                    ai_context,
+                    feature=feature,
+                    task_id=task_id,
+                    status="failed",
+                )
+                raise
+
         content = ""
         llm_provider = config.app.get("llm_provider", "openai")
         logger.info(f"llm provider: {llm_provider}")
@@ -459,7 +526,11 @@ def _generate_response(prompt: str) -> str:
 
 
 def generate_script(
-    video_subject: str, language: str = "", paragraph_number: int = 1
+    video_subject: str,
+    language: str = "",
+    paragraph_number: int = 1,
+    user_id: str | None = None,
+    task_id: str | None = None,
 ) -> str:
     prompt = f"""
 # Role: Video Script Generator
@@ -508,7 +579,12 @@ Generate a script for a video, depending on the subject of the video.
 
     for i in range(_max_retries):
         try:
-            response = _generate_response(prompt=prompt)
+            response = _generate_response(
+                prompt=prompt,
+                user_id=user_id,
+                feature="script",
+                task_id=task_id,
+            )
             if response:
                 final_script = format_response(response)
             else:
@@ -532,7 +608,13 @@ Generate a script for a video, depending on the subject of the video.
     return final_script.strip()
 
 
-def generate_terms(video_subject: str, video_script: str, amount: int = 5) -> List[str]:
+def generate_terms(
+    video_subject: str,
+    video_script: str,
+    amount: int = 5,
+    user_id: str | None = None,
+    task_id: str | None = None,
+) -> List[str]:
     prompt = f"""
 # Role: Video Search Terms Generator
 
@@ -565,7 +647,12 @@ Please note that you must use English for generating video search terms; Chinese
     response = ""
     for i in range(_max_retries):
         try:
-            response = _generate_response(prompt)
+            response = _generate_response(
+                prompt,
+                user_id=user_id,
+                feature="terms",
+                task_id=task_id,
+            )
             if "Error: " in response:
                 logger.error(f"failed to generate video script: {response}")
                 return response

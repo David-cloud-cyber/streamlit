@@ -1,0 +1,10 @@
+{
+  "name": "moneyprinterturbo-delivery",
+  "version": "1.2.8",
+  "private": true,
+  "scripts": {
+    "build": "npm --prefix webapp run build",
+    "dev": "npm --prefix webapp run dev",
+    "start": "npm --prefix webapp run start"
+  }
+}

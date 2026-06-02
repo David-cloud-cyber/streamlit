@@ -1,0 +1,14 @@
+app
+webui
+docs
+test
+resource
+storage
+config.toml
+requirements.txt
+pyproject.toml
+uv.lock
+.python-version
+Dockerfile
+Dockerfile.gpu
+docker-compose.yml

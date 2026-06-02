@@ -30,6 +30,7 @@ from app.models.schema import (
     VideoMaterialRetrieveResponse
 )
 from app.services import state as sm
+from app.services import supabase_auth
 from app.services import task as tm
 from app.utils import file_security, utils
 
@@ -87,6 +88,33 @@ def _resolve_path_within_directory(base_dir: str, unsafe_path: str, request_id: 
             message=f"{request_id}: invalid file path",
         )
 
+
+def _task_owner_id(task: dict | None) -> str | None:
+    if not task:
+        return None
+    owner = task.get("user_id")
+    return str(owner) if owner else None
+
+
+def _ensure_task_owner(task: dict | None, user_id: str | None, request_id: str, task_id: str):
+    if not supabase_auth.is_auth_enabled() or not user_id:
+        return
+    if _task_owner_id(task) != user_id:
+        raise HttpException(
+            task_id=task_id,
+            status_code=404,
+            message=f"{request_id}: task not found",
+        )
+
+
+def _ensure_file_owner(file_path: str, user_id: str | None, request_id: str):
+    if not supabase_auth.is_auth_enabled() or not user_id:
+        return
+    task_id = file_path.replace("\\", "/").split("/", 1)[0]
+    task = sm.state.get_task(task_id)
+    _ensure_task_owner(task, user_id, request_id, task_id)
+
+
 def _task_file_to_uri(file: str, endpoint: str, task_dir: str, request_id: str) -> str:
     if not isinstance(file, str):
         return file
@@ -106,7 +134,7 @@ def _task_file_to_uri(file: str, endpoint: str, task_dir: str, request_id: str) 
         return file
 
     relative_path = os.path.relpath(resolved_path, task_dir).replace("\\", "/")
-    uri_path = f"tasks/{relative_path}"
+    uri_path = f"api/v1/stream/{relative_path}"
     if endpoint:
         return f"{endpoint.rstrip('/')}/{uri_path}"
     return f"/{uri_path}"
@@ -114,40 +142,64 @@ def _task_file_to_uri(file: str, endpoint: str, task_dir: str, request_id: str) 
 
 @router.post("/videos", response_model=TaskResponse, summary="Generate a short video")
 def create_video(
-    background_tasks: BackgroundTasks, request: Request, body: TaskVideoRequest
+    background_tasks: BackgroundTasks,
+    request: Request,
+    body: TaskVideoRequest,
+    current_user: supabase_auth.AuthenticatedUser | None = Depends(
+        supabase_auth.require_user
+    ),
 ):
-    return create_task(request, body, stop_at="video")
+    return create_task(request, body, stop_at="video", current_user=current_user)
 
 
 @router.post("/subtitle", response_model=TaskResponse, summary="Generate subtitle only")
 def create_subtitle(
-    background_tasks: BackgroundTasks, request: Request, body: SubtitleRequest
+    background_tasks: BackgroundTasks,
+    request: Request,
+    body: SubtitleRequest,
+    current_user: supabase_auth.AuthenticatedUser | None = Depends(
+        supabase_auth.require_user
+    ),
 ):
-    return create_task(request, body, stop_at="subtitle")
+    return create_task(request, body, stop_at="subtitle", current_user=current_user)
 
 
 @router.post("/audio", response_model=TaskResponse, summary="Generate audio only")
 def create_audio(
-    background_tasks: BackgroundTasks, request: Request, body: AudioRequest
+    background_tasks: BackgroundTasks,
+    request: Request,
+    body: AudioRequest,
+    current_user: supabase_auth.AuthenticatedUser | None = Depends(
+        supabase_auth.require_user
+    ),
 ):
-    return create_task(request, body, stop_at="audio")
+    return create_task(request, body, stop_at="audio", current_user=current_user)
 
 
 def create_task(
     request: Request,
     body: Union[TaskVideoRequest, SubtitleRequest, AudioRequest],
     stop_at: str,
+    current_user: supabase_auth.AuthenticatedUser | None = None,
 ):
     task_id = utils.get_uuid()
     request_id = base.get_task_id(request)
+    user_id = current_user.id if current_user else None
     try:
         task = {
             "task_id": task_id,
             "request_id": request_id,
             "params": body.model_dump(),
+            "user_id": user_id,
         }
-        sm.state.update_task(task_id)
-        task_manager.add_task(tm.start, task_id=task_id, params=body, stop_at=stop_at)
+        sm.state.update_task(task_id, user_id=user_id)
+        task_manager.add_task(
+            tm.start,
+            task_id=task_id,
+            params=body,
+            stop_at=stop_at,
+            user_id=user_id,
+        )
         logger.success(f"Task created: {utils.to_json(task)}")
         return utils.get_response(200, task)
     except TaskQueueFullError as e:
@@ -166,9 +218,20 @@ def create_task(
 from fastapi import Query
 
 @router.get("/tasks", response_model=TaskQueryResponse, summary="Get all tasks")
-def get_all_tasks(request: Request, page: int = Query(1, ge=1), page_size: int = Query(10, ge=1)):
+def get_all_tasks(
+    request: Request,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1),
+    current_user: supabase_auth.AuthenticatedUser | None = Depends(
+        supabase_auth.require_user
+    ),
+):
     request_id = base.get_task_id(request)
-    tasks, total = sm.state.get_all_tasks(page, page_size)
+    tasks, total = sm.state.get_all_tasks(
+        page,
+        page_size,
+        user_id=current_user.id if current_user else None,
+    )
 
     response = {
         "tasks": tasks,
@@ -187,11 +250,20 @@ def get_task(
     request: Request,
     task_id: str = Path(..., description="Task ID"),
     query: TaskQueryRequest = Depends(),
+    current_user: supabase_auth.AuthenticatedUser | None = Depends(
+        supabase_auth.require_user
+    ),
 ):
     request_id = base.get_task_id(request)
     endpoint = config.app.get("endpoint", "").rstrip("/")
     task = sm.state.get_task(task_id)
     if task:
+        _ensure_task_owner(
+            task,
+            current_user.id if current_user else None,
+            request_id,
+            task_id,
+        )
         task_dir = utils.task_dir()
         response_task = dict(task)
 
@@ -217,10 +289,22 @@ def get_task(
     response_model=TaskDeletionResponse,
     summary="Delete a generated short video task",
 )
-def delete_video(request: Request, task_id: str = Path(..., description="Task ID")):
+def delete_video(
+    request: Request,
+    task_id: str = Path(..., description="Task ID"),
+    current_user: supabase_auth.AuthenticatedUser | None = Depends(
+        supabase_auth.require_user
+    ),
+):
     request_id = base.get_task_id(request)
     task = sm.state.get_task(task_id)
     if task:
+        _ensure_task_owner(
+            task,
+            current_user.id if current_user else None,
+            request_id,
+            task_id,
+        )
         tasks_dir = utils.task_dir()
         current_task_dir = os.path.join(tasks_dir, task_id)
         if os.path.exists(current_task_dir):
@@ -238,7 +322,12 @@ def delete_video(request: Request, task_id: str = Path(..., description="Task ID
 @router.get(
     "/musics", response_model=BgmRetrieveResponse, summary="Retrieve local BGM files"
 )
-def get_bgm_list(request: Request):
+def get_bgm_list(
+    request: Request,
+    current_user: supabase_auth.AuthenticatedUser | None = Depends(
+        supabase_auth.require_user
+    ),
+):
     suffix = "*.mp3"
     song_dir = utils.song_dir()
     files = glob.glob(os.path.join(song_dir, suffix))
@@ -263,7 +352,13 @@ def get_bgm_list(request: Request):
     response_model=BgmUploadResponse,
     summary="Upload the BGM file to the songs directory",
 )
-def upload_bgm_file(request: Request, file: UploadFile = File(...)):
+def upload_bgm_file(
+    request: Request,
+    file: UploadFile = File(...),
+    current_user: supabase_auth.AuthenticatedUser | None = Depends(
+        supabase_auth.require_user
+    ),
+):
     request_id = base.get_task_id(request)
     safe_filename = _sanitize_upload_filename(file.filename, request_id)
     # check file ext
@@ -285,7 +380,12 @@ def upload_bgm_file(request: Request, file: UploadFile = File(...)):
 @router.get(
     "/video_materials", response_model=VideoMaterialRetrieveResponse, summary="Retrieve local video materials"
 )
-def get_video_materials_list(request: Request):
+def get_video_materials_list(
+    request: Request,
+    current_user: supabase_auth.AuthenticatedUser | None = Depends(
+        supabase_auth.require_user
+    ),
+):
     allowed_suffixes = ("mp4", "mov", "avi", "flv", "mkv", "jpg", "jpeg", "png")
     local_videos_dir = utils.storage_dir("local_videos", create=True)
     files = []
@@ -315,7 +415,13 @@ def get_video_materials_list(request: Request):
     response_model=VideoMaterialUploadResponse,
     summary="Upload the video material file to the local videos directory",
 )
-def upload_video_material_file(request: Request, file: UploadFile = File(...)):
+def upload_video_material_file(
+    request: Request,
+    file: UploadFile = File(...),
+    current_user: supabase_auth.AuthenticatedUser | None = Depends(
+        supabase_auth.require_user
+    ),
+):
     request_id = base.get_task_id(request)
     safe_filename = _sanitize_upload_filename(file.filename, request_id)
     # check file ext
@@ -338,8 +444,19 @@ def upload_video_material_file(request: Request, file: UploadFile = File(...)):
     )
 
 @router.get("/stream/{file_path:path}")
-async def stream_video(request: Request, file_path: str):
+async def stream_video(
+    request: Request,
+    file_path: str,
+    current_user: supabase_auth.AuthenticatedUser | None = Depends(
+        supabase_auth.require_user
+    ),
+):
     request_id = base.get_task_id(request)
+    _ensure_file_owner(
+        file_path,
+        current_user.id if current_user else None,
+        request_id,
+    )
     tasks_dir = utils.task_dir()
     video_path = _resolve_path_within_directory(tasks_dir, file_path, request_id)
     range_header = request.headers.get("Range")
@@ -381,7 +498,13 @@ async def stream_video(request: Request, file_path: str):
 
 
 @router.get("/download/{file_path:path}")
-async def download_video(request: Request, file_path: str):
+async def download_video(
+    request: Request,
+    file_path: str,
+    current_user: supabase_auth.AuthenticatedUser | None = Depends(
+        supabase_auth.require_user
+    ),
+):
     """
     download video
     :param request: Request request
@@ -389,6 +512,11 @@ async def download_video(request: Request, file_path: str):
     :return: video file
     """
     request_id = base.get_task_id(request)
+    _ensure_file_owner(
+        file_path,
+        current_user.id if current_user else None,
+        request_id,
+    )
     tasks_dir = utils.task_dir()
     video_path = _resolve_path_within_directory(tasks_dir, file_path, request_id)
     file_path = pathlib.Path(video_path)

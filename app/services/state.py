@@ -16,7 +16,7 @@ class BaseState(ABC):
         pass
 
     @abstractmethod
-    def get_all_tasks(self, page: int, page_size: int):
+    def get_all_tasks(self, page: int, page_size: int, user_id: str | None = None):
         pass
 
 
@@ -25,10 +25,12 @@ class MemoryState(BaseState):
     def __init__(self):
         self._tasks = {}
 
-    def get_all_tasks(self, page: int, page_size: int):
+    def get_all_tasks(self, page: int, page_size: int, user_id: str | None = None):
         start = (page - 1) * page_size
         end = start + page_size
         tasks = list(self._tasks.values())
+        if user_id:
+            tasks = [task for task in tasks if task.get("user_id") == user_id]
         total = len(tasks)
         return tasks[start:end], total
 
@@ -65,7 +67,7 @@ class RedisState(BaseState):
 
         self._redis = redis.StrictRedis(host=host, port=port, db=db, password=password)
 
-    def get_all_tasks(self, page: int, page_size: int):
+    def get_all_tasks(self, page: int, page_size: int, user_id: str | None = None):
         start = (page - 1) * page_size
         end = start + page_size
         tasks = []
@@ -80,22 +82,24 @@ class RedisState(BaseState):
             # Redis SCAN 是分批返回 key。分页切片必须基于“当前批次起始索引”
             # 计算，而不能用累积后的 total 反推，否则第一页会切到空数组，
             # 第二页也可能只返回部分数据。
-            if batch_start < end and total > start:
-                slice_start = max(0, start - batch_start)
-                slice_end = min(batch_size, end - batch_start)
+            if True:
+                slice_start = 0
+                slice_end = batch_size
                 for key in keys[slice_start:slice_end]:
                     task_data = self._redis.hgetall(key)
                     task = {
                         k.decode("utf-8"): self._convert_to_original_type(v)
                         for k, v in task_data.items()
                     }
-                    tasks.append(task)
+                    if not user_id or task.get("user_id") == user_id:
+                        tasks.append(task)
 
             # 即使当前页已经取满，也要继续 SCAN 到 cursor=0，
             # 因为调用方需要准确 total 来渲染分页信息。
             if cursor == 0:
                 break
-        return tasks, total
+        total = len(tasks) if user_id else total
+        return tasks[start:end], total
 
     def update_task(
         self,
