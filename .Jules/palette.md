@@ -1,0 +1,3 @@
+## 2025-05-22 - [Required field indicators pattern]
+**Learning:** The 'Field' component in 'webapp/src/App.tsx' now accepts an optional 'required' boolean prop. When true, it renders a red asterisk ('text-red-600') with 'aria-hidden="true"' immediately after the label text. The '.field-label' class in 'webapp/src/styles.css' uses 'display: flex', 'justify-content: flex-start', and 'gap: 4px' to ensure label text and asterisks remain close together.
+**Action:** Always use the 'required' prop on the 'Field' component and ensure the underlying input has the 'required' HTML attribute for functional consistency.
