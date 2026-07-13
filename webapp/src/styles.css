@@ -96,8 +96,8 @@ select:focus-visible {
 .field-label {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  justify-content: flex-start;
+  gap: 4px;
   color: #344054;
   font-size: 0.82rem;
   font-weight: 700;
