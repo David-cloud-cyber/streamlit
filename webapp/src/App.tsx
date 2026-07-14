@@ -606,7 +606,10 @@ export default function Home() {
             <span className="text-xs font-black uppercase tracking-[0.14em] text-muted">
               Backend
             </span>
-            <span className={apiOnline ? "text-mint-600" : "text-red-600"}>
+            <span
+              className={apiOnline ? "text-mint-600" : "text-red-600"}
+              title={apiOnline ? "API connectee" : "API hors ligne"}
+            >
               {apiOnline ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
             </span>
           </div>
@@ -1103,7 +1106,7 @@ export default function Home() {
                       />
                     </Field>
                   </div>
-                  <Field label="Cle API">
+                  <Field label="Cle API" required>
                     <input
                       className="field"
                       type="password"
@@ -1111,6 +1114,7 @@ export default function Home() {
                       value={providerForm.api_key}
                       placeholder="sk-... ou cle Anthropic"
                       onChange={(event) => patchProviderForm({ api_key: event.target.value })}
+                      required
                     />
                   </Field>
                   <button className="btn btn-primary" disabled={busy === "provider"}>
@@ -1238,7 +1242,7 @@ function AuthScreen({
         )}
 
         <form className="space-y-4" onSubmit={onSubmit}>
-          <Field label="Email">
+          <Field label="Email" required>
             <input
               className="field"
               type="email"
@@ -1247,7 +1251,7 @@ function AuthScreen({
               required
             />
           </Field>
-          <Field label="Mot de passe">
+          <Field label="Mot de passe" required>
             <input
               className="field"
               type="password"
@@ -1346,7 +1350,10 @@ function SectionTitle({
 }) {
   return (
     <div className="flex items-start gap-3">
-      <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
+      <div
+        className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700"
+        aria-hidden="true"
+      >
         {icon}
       </div>
       <div>
@@ -1357,10 +1364,25 @@ function SectionTitle({
   );
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({
+  label,
+  children,
+  required
+}: {
+  label: string;
+  children: ReactNode;
+  required?: boolean;
+}) {
   return (
     <label className="space-y-2">
-      <span className="field-label">{label}</span>
+      <span className="field-label">
+        {label}
+        {required && (
+          <span className="text-red-600" aria-hidden="true">
+            *
+          </span>
+        )}
+      </span>
       {children}
     </label>
   );

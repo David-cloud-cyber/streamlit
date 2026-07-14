@@ -1,0 +1,3 @@
+## 2026-07-14 - [Required Fields Pattern]
+**Learning:** For a clean and accessible required field indicator, use a `required` prop on the label component that renders a red asterisk with `aria-hidden="true"`. Ensure the label container uses `justify-content: flex-start` with a small gap to keep the indicator adjacent to the label text, preventing it from floating far away on wider screens. Always pair visual indicators with the native HTML `required` attribute on the input for functional validation.
+**Action:** Apply this pattern to all mandatory form fields to improve user guidance and accessibility.
