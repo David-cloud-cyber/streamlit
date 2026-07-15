@@ -1,0 +1,3 @@
+## 2025-05-22 - [Required Field Indicators]
+**Learning:** The 'Field' component in 'webapp/src/App.tsx' was missing a visual indicator for mandatory fields. Adding a red asterisk with 'aria-hidden="true"' ensures visual clarity without redundant screen reader announcements (as the 'required' attribute on the input already handles a11y).
+**Action:** Use the 'required' prop on the 'Field' component and ensure the underlying input also has the native 'required' attribute. Adjust '.field-label' CSS to use 'justify-content: flex-start' and a small 'gap' (4px) to keep the label and asterisk together.
