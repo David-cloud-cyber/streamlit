@@ -588,17 +588,21 @@ export default function Home() {
         </div>
 
         <nav className="space-y-1">
-          {navItems.map((item) => (
-            <button
-              key={item.key}
-              className="nav-item"
-              data-active={view === item.key}
-              onClick={() => setView(item.key)}
-            >
-              <item.icon size={18} />
-              {item.label}
-            </button>
-          ))}
+          {navItems.map((item) => {
+            const isActive = view === item.key;
+            return (
+              <button
+                key={item.key}
+                className="nav-item"
+                data-active={isActive}
+                aria-current={isActive ? "page" : undefined}
+                onClick={() => setView(item.key)}
+              >
+                <item.icon size={18} aria-hidden="true" />
+                {item.label}
+              </button>
+            );
+          })}
         </nav>
 
         <div className="mt-8 rounded-xl border border-line bg-white p-4">
@@ -1103,7 +1107,7 @@ export default function Home() {
                       />
                     </Field>
                   </div>
-                  <Field label="Cle API">
+                  <Field label="Cle API" required={true}>
                     <input
                       className="field"
                       type="password"
@@ -1111,6 +1115,7 @@ export default function Home() {
                       value={providerForm.api_key}
                       placeholder="sk-... ou cle Anthropic"
                       onChange={(event) => patchProviderForm({ api_key: event.target.value })}
+                      required
                     />
                   </Field>
                   <button className="btn btn-primary" disabled={busy === "provider"}>
@@ -1238,7 +1243,7 @@ function AuthScreen({
         )}
 
         <form className="space-y-4" onSubmit={onSubmit}>
-          <Field label="Email">
+          <Field label="Email" required={true}>
             <input
               className="field"
               type="email"
@@ -1247,7 +1252,7 @@ function AuthScreen({
               required
             />
           </Field>
-          <Field label="Mot de passe">
+          <Field label="Mot de passe" required={true}>
             <input
               className="field"
               type="password"
@@ -1346,7 +1351,7 @@ function SectionTitle({
 }) {
   return (
     <div className="flex items-start gap-3">
-      <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
+      <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700" aria-hidden="true">
         {icon}
       </div>
       <div>
@@ -1357,10 +1362,17 @@ function SectionTitle({
   );
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({ label, children, required }: { label: string; children: ReactNode; required?: boolean }) {
   return (
-    <label className="space-y-2">
-      <span className="field-label">{label}</span>
+    <label className="space-y-2 block">
+      <span className="flex items-center gap-1 text-sm font-semibold text-muted">
+        {label}
+        {required && (
+          <span className="text-red-600 font-bold" aria-hidden="true">
+            *
+          </span>
+        )}
+      </span>
       {children}
     </label>
   );
