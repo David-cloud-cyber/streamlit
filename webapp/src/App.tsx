@@ -593,9 +593,10 @@ export default function Home() {
               key={item.key}
               className="nav-item"
               data-active={view === item.key}
+              aria-current={view === item.key ? "page" : undefined}
               onClick={() => setView(item.key)}
             >
-              <item.icon size={18} />
+              <item.icon size={18} aria-hidden="true" />
               {item.label}
             </button>
           ))}
