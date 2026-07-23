@@ -1,0 +1,3 @@
+## 2025-02-17 - Keeping Form Labels and Required Asterisks Aligned in Flex Layouts
+**Learning:** In design systems where label containers might utilize CSS flex alignment properties (such as `.field-label` with `justify-content: space-between`), placing a required asterisk inside the same container can cause them to separate across the layout width, disrupting readability. Wrapping them together in a nested flexbox container (`flex items-center gap-1`) keeps the asterisk anchored next to the label text.
+**Action:** Always wrap label text and dynamic indicators (such as required asterisks or informational help bubbles) in a nested flex row container to preserve proximal alignment in layout systems.
