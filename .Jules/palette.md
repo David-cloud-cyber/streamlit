@@ -1,0 +1,3 @@
+## 2025-02-18 - Nested Flex Containers for Labels and Required Asterisks
+**Learning:** When using CSS flexbox layout with `justify-content: space-between` on form field label containers, appending a required asterisk directly inside the container pushes it to the opposite side of the field width. This separates the asterisk from the label text, creating a poor visual connection and confusing users.
+**Action:** Wrap the label text and the required asterisk inside a nested inline-flex or flex container (e.g., `span className="flex items-center gap-1"`) to keep them visually close together regardless of the parent's alignment properties.
