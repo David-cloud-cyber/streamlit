@@ -593,9 +593,10 @@ export default function Home() {
               key={item.key}
               className="nav-item"
               data-active={view === item.key}
+              aria-current={view === item.key ? "page" : undefined}
               onClick={() => setView(item.key)}
             >
-              <item.icon size={18} />
+              <item.icon size={18} aria-hidden="true" />
               {item.label}
             </button>
           ))}
@@ -606,7 +607,11 @@ export default function Home() {
             <span className="text-xs font-black uppercase tracking-[0.14em] text-muted">
               Backend
             </span>
-            <span className={apiOnline ? "text-mint-600" : "text-red-600"}>
+            <span
+              className={apiOnline ? "text-mint-600" : "text-red-600"}
+              title={apiOnline ? "API connectee" : "API hors ligne"}
+              aria-label={apiOnline ? "API connectee" : "API hors ligne"}
+            >
               {apiOnline ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
             </span>
           </div>
@@ -1346,7 +1351,10 @@ function SectionTitle({
 }) {
   return (
     <div className="flex items-start gap-3">
-      <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
+      <div
+        className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700"
+        aria-hidden="true"
+      >
         {icon}
       </div>
       <div>

@@ -1,0 +1,3 @@
+## 2025-02-18 - [Sidebar Navigation and Status Accessibility]
+**Learning:** For tabbed navigation systems that lack explicit anchor routes, using `aria-current="page"` dynamically on the active button informs assistive technology of the user's current view. Additionally, nested icons must have `aria-hidden="true"` to prevent redundant screen reader announcements, and status indicators need both `title` and `aria-label` to be universally understood.
+**Action:** Always include dynamic `aria-current` attributes on button-based sidebar navigation and hide decorative/redundant icons using `aria-hidden="true"`.
