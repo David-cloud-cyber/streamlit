@@ -1,0 +1,3 @@
+## 2026-08-09 - [Accessible Side Navigation & Dynamic Live Regions]
+**Learning:** Purely decorative icons nested inside sidebar buttons and section headers cause screen-reader noise unless wrapped in element containers with `aria-hidden="true"`. Also, sidebar links/buttons must indicate the active page using `aria-current="page"` to comply with screen reader standard patterns. Dynamic state-notification banners (like toasts) are not read aloud by screen readers on update unless initialized with `role="alert"`.
+**Action:** Always wrap decorative layout icons inside an element containing `aria-hidden="true"`, add `aria-current="page"` to active nav elements, and use `role="alert"` on dynamic notification banners in React apps.
