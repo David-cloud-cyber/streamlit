@@ -593,9 +593,12 @@ export default function Home() {
               key={item.key}
               className="nav-item"
               data-active={view === item.key}
+              aria-current={view === item.key ? "page" : undefined}
               onClick={() => setView(item.key)}
             >
-              <item.icon size={18} />
+              <span className="flex items-center" aria-hidden="true">
+                <item.icon size={18} />
+              </span>
               {item.label}
             </button>
           ))}
@@ -664,6 +667,7 @@ export default function Home() {
         <div className="px-6 py-6">
           {toast && (
             <div
+              role="alert"
               className={`mb-5 rounded-xl border px-4 py-3 text-sm font-bold ${
                 toast.tone === "success"
                   ? "border-green-200 bg-green-50 text-green-700"
@@ -1225,6 +1229,7 @@ function AuthScreen({
 
         {toast && (
           <div
+            role="alert"
             className={`mb-5 rounded-xl border px-4 py-3 text-sm font-bold ${
               toast.tone === "success"
                 ? "border-green-200 bg-green-50 text-green-700"
@@ -1346,7 +1351,7 @@ function SectionTitle({
 }) {
   return (
     <div className="flex items-start gap-3">
-      <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
+      <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700" aria-hidden="true">
         {icon}
       </div>
       <div>
