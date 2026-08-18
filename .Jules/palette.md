@@ -1,0 +1,3 @@
+## 2026-08-18 - Navigation and Toast Accessibility Patterns
+**Learning:** Screen reader users need explicit `aria-current="page"` attributes on sidebar navigation items to perceive the active route, `role="alert"` on dynamically rendered toast containers for immediate audio feedback, and `aria-hidden="true"` on non-interactive decorative icons to avoid repetitive announcements.
+**Action:** When building sidebar navigation or status/alert UI elements in React, always pair decorative SVG icons with `aria-hidden="true"`, dynamic alerts with `role="alert"`, and active tab/nav buttons with `aria-current="page"`.
