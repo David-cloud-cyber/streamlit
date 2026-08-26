@@ -664,6 +664,8 @@ export default function Home() {
         <div className="px-6 py-6">
           {toast && (
             <div
+              role="alert"
+              aria-live="polite"
               className={`mb-5 rounded-xl border px-4 py-3 text-sm font-bold ${
                 toast.tone === "success"
                   ? "border-green-200 bg-green-50 text-green-700"
@@ -1225,6 +1227,8 @@ function AuthScreen({
 
         {toast && (
           <div
+            role="alert"
+            aria-live="polite"
             className={`mb-5 rounded-xl border px-4 py-3 text-sm font-bold ${
               toast.tone === "success"
                 ? "border-green-200 bg-green-50 text-green-700"
