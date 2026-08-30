@@ -1,0 +1,3 @@
+## 2026-08-30 - Navigation ARIA Page Indication & Icon Noise Reduction
+**Learning:** Single-page applications using `<button>` elements for top-level sidebar navigation lack native semantic page context for screen readers. Using `aria-current="page"` explicitly identifies active views, while wrapping decorative SVG icons in `aria-hidden="true"` containers prevents redundant screen reader announcements.
+**Action:** When implementing custom tab or sidebar navigation with buttons, always attach `aria-current={isActive ? "page" : undefined}` to the active button and hide purely decorative Lucide icons from accessibility trees.
