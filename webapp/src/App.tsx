@@ -593,9 +593,10 @@ export default function Home() {
               key={item.key}
               className="nav-item"
               data-active={view === item.key}
+              aria-current={view === item.key ? "page" : undefined}
               onClick={() => setView(item.key)}
             >
-              <item.icon size={18} />
+              <item.icon size={18} aria-hidden="true" />
               {item.label}
             </button>
           ))}
@@ -606,8 +607,12 @@ export default function Home() {
             <span className="text-xs font-black uppercase tracking-[0.14em] text-muted">
               Backend
             </span>
-            <span className={apiOnline ? "text-mint-600" : "text-red-600"}>
-              {apiOnline ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+            <span
+              className={apiOnline ? "text-mint-600" : "text-red-600"}
+              title={apiOnline ? "API connectee" : "API hors ligne"}
+              aria-label={apiOnline ? "Statut API: Connectee" : "Statut API: Hors ligne"}
+            >
+              {apiOnline ? <CheckCircle2 size={18} aria-hidden="true" /> : <AlertCircle size={18} aria-hidden="true" />}
             </span>
           </div>
           <p className="break-all text-sm font-bold text-ink">{api.baseUrl}</p>
@@ -664,6 +669,8 @@ export default function Home() {
         <div className="px-6 py-6">
           {toast && (
             <div
+              role="alert"
+              aria-live="polite"
               className={`mb-5 rounded-xl border px-4 py-3 text-sm font-bold ${
                 toast.tone === "success"
                   ? "border-green-200 bg-green-50 text-green-700"
@@ -1225,6 +1232,8 @@ function AuthScreen({
 
         {toast && (
           <div
+            role="alert"
+            aria-live="polite"
             className={`mb-5 rounded-xl border px-4 py-3 text-sm font-bold ${
               toast.tone === "success"
                 ? "border-green-200 bg-green-50 text-green-700"
