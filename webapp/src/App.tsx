@@ -588,17 +588,22 @@ export default function Home() {
         </div>
 
         <nav className="space-y-1">
-          {navItems.map((item) => (
-            <button
-              key={item.key}
-              className="nav-item"
-              data-active={view === item.key}
-              onClick={() => setView(item.key)}
-            >
-              <item.icon size={18} />
-              {item.label}
-            </button>
-          ))}
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = view === item.key;
+            return (
+              <button
+                key={item.key}
+                className="nav-item"
+                data-active={isActive}
+                aria-current={isActive ? "page" : undefined}
+                onClick={() => setView(item.key)}
+              >
+                <Icon size={18} aria-hidden="true" />
+                {item.label}
+              </button>
+            );
+          })}
         </nav>
 
         <div className="mt-8 rounded-xl border border-line bg-white p-4">
@@ -606,8 +611,12 @@ export default function Home() {
             <span className="text-xs font-black uppercase tracking-[0.14em] text-muted">
               Backend
             </span>
-            <span className={apiOnline ? "text-mint-600" : "text-red-600"}>
-              {apiOnline ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+            <span
+              className={apiOnline ? "text-mint-600" : "text-red-600"}
+              title={apiOnline ? "API connectee" : "API hors ligne"}
+              aria-label={apiOnline ? "API connectee" : "API hors ligne"}
+            >
+              {apiOnline ? <CheckCircle2 size={18} aria-hidden="true" /> : <AlertCircle size={18} aria-hidden="true" />}
             </span>
           </div>
           <p className="break-all text-sm font-bold text-ink">{api.baseUrl}</p>
@@ -664,6 +673,8 @@ export default function Home() {
         <div className="px-6 py-6">
           {toast && (
             <div
+              role="alert"
+              aria-live="polite"
               className={`mb-5 rounded-xl border px-4 py-3 text-sm font-bold ${
                 toast.tone === "success"
                   ? "border-green-200 bg-green-50 text-green-700"
@@ -1225,6 +1236,8 @@ function AuthScreen({
 
         {toast && (
           <div
+            role="alert"
+            aria-live="polite"
             className={`mb-5 rounded-xl border px-4 py-3 text-sm font-bold ${
               toast.tone === "success"
                 ? "border-green-200 bg-green-50 text-green-700"
@@ -1346,7 +1359,10 @@ function SectionTitle({
 }) {
   return (
     <div className="flex items-start gap-3">
-      <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
+      <div
+        className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700"
+        aria-hidden="true"
+      >
         {icon}
       </div>
       <div>
