@@ -592,10 +592,11 @@ export default function Home() {
             <button
               key={item.key}
               className="nav-item"
+              aria-current={view === item.key ? "page" : undefined}
               data-active={view === item.key}
               onClick={() => setView(item.key)}
             >
-              <item.icon size={18} />
+              <item.icon size={18} aria-hidden="true" />
               {item.label}
             </button>
           ))}
@@ -1346,7 +1347,7 @@ function SectionTitle({
 }) {
   return (
     <div className="flex items-start gap-3">
-      <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
+      <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700" aria-hidden="true">
         {icon}
       </div>
       <div>
