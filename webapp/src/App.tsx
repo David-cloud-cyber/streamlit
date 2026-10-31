@@ -28,7 +28,8 @@ import {
   Trash2,
   UploadCloud,
   User,
-  Wand2
+  Wand2,
+  X
 } from "lucide-react";
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -664,7 +665,10 @@ export default function Home() {
         <div className="px-6 py-6">
           {toast && (
             <div
-              className={`mb-5 rounded-xl border px-4 py-3 text-sm font-bold ${
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+              className={`mb-5 flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm font-bold ${
                 toast.tone === "success"
                   ? "border-green-200 bg-green-50 text-green-700"
                   : toast.tone === "error"
@@ -672,7 +676,15 @@ export default function Home() {
                     : "border-brand-100 bg-brand-50 text-brand-700"
               }`}
             >
-              {toast.message}
+              <span>{toast.message}</span>
+              <button
+                type="button"
+                className="opacity-70 hover:opacity-100 focus-visible:opacity-100"
+                aria-label="Fermer la notification"
+                onClick={() => setToast(null)}
+              >
+                <X size={16} aria-hidden="true" />
+              </button>
             </div>
           )}
 
