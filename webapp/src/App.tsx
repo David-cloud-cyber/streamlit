@@ -28,7 +28,8 @@ import {
   Trash2,
   UploadCloud,
   User,
-  Wand2
+  Wand2,
+  X
 } from "lucide-react";
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -663,17 +664,7 @@ export default function Home() {
 
         <div className="px-6 py-6">
           {toast && (
-            <div
-              className={`mb-5 rounded-xl border px-4 py-3 text-sm font-bold ${
-                toast.tone === "success"
-                  ? "border-green-200 bg-green-50 text-green-700"
-                  : toast.tone === "error"
-                    ? "border-red-200 bg-red-50 text-red-700"
-                    : "border-brand-100 bg-brand-50 text-brand-700"
-              }`}
-            >
-              {toast.message}
-            </div>
+            <ToastBanner toast={toast} onDismiss={() => setToast(null)} />
           )}
 
           {view === "studio" && (
@@ -1224,17 +1215,7 @@ function AuthScreen({
         </div>
 
         {toast && (
-          <div
-            className={`mb-5 rounded-xl border px-4 py-3 text-sm font-bold ${
-              toast.tone === "success"
-                ? "border-green-200 bg-green-50 text-green-700"
-                : toast.tone === "error"
-                  ? "border-red-200 bg-red-50 text-red-700"
-                  : "border-brand-100 bg-brand-50 text-brand-700"
-            }`}
-          >
-            {toast.message}
-          </div>
+          <ToastBanner toast={toast} onDismiss={() => null} />
         )}
 
         <form className="space-y-4" onSubmit={onSubmit}>
@@ -1371,6 +1352,35 @@ function Metric({ label, value }: { label: string; value: string }) {
     <div className="rounded-xl border border-line bg-white p-3">
       <p className="text-xs font-black uppercase tracking-[0.12em] text-muted">{label}</p>
       <p className="mt-1 break-words text-sm font-black text-ink">{value}</p>
+    </div>
+  );
+}
+
+function ToastBanner({ toast, onDismiss }: { toast: NonNullable<Toast>; onDismiss: () => void }) {
+  const isSuccess = toast.tone === "success";
+  const isError = toast.tone === "error";
+  const toneClass = isSuccess
+    ? "border-green-200 bg-green-50 text-green-700"
+    : isError
+      ? "border-red-200 bg-red-50 text-red-700"
+      : "border-brand-100 bg-brand-50 text-brand-700";
+
+  return (
+    <div role="status" aria-live="polite" className={`mb-5 flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm font-bold ${toneClass}`}>
+      <div className="flex items-center gap-2.5">
+        <span aria-hidden="true" className="shrink-0">
+          {isSuccess ? <CheckCircle2 size={18} /> : isError ? <AlertCircle size={18} /> : <Sparkles size={18} />}
+        </span>
+        <span>{toast.message}</span>
+      </div>
+      <button
+        type="button"
+        onClick={onDismiss}
+        aria-label="Fermer la notification"
+        className="shrink-0 rounded-lg p-1 text-current opacity-70 transition hover:bg-black/5 hover:opacity-100 focus-visible:opacity-100"
+      >
+        <X size={16} aria-hidden="true" />
+      </button>
     </div>
   );
 }
