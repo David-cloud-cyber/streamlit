@@ -28,7 +28,8 @@ import {
   Trash2,
   UploadCloud,
   User,
-  Wand2
+  Wand2,
+  X
 } from "lucide-react";
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -662,19 +663,7 @@ export default function Home() {
         </header>
 
         <div className="px-6 py-6">
-          {toast && (
-            <div
-              className={`mb-5 rounded-xl border px-4 py-3 text-sm font-bold ${
-                toast.tone === "success"
-                  ? "border-green-200 bg-green-50 text-green-700"
-                  : toast.tone === "error"
-                    ? "border-red-200 bg-red-50 text-red-700"
-                    : "border-brand-100 bg-brand-50 text-brand-700"
-              }`}
-            >
-              {toast.message}
-            </div>
-          )}
+          <ToastBanner toast={toast} onDismiss={() => setToast(null)} />
 
           {view === "studio" && (
             <form className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]" onSubmit={createVideo}>
@@ -1223,19 +1212,7 @@ function AuthScreen({
           </div>
         </div>
 
-        {toast && (
-          <div
-            className={`mb-5 rounded-xl border px-4 py-3 text-sm font-bold ${
-              toast.tone === "success"
-                ? "border-green-200 bg-green-50 text-green-700"
-                : toast.tone === "error"
-                  ? "border-red-200 bg-red-50 text-red-700"
-                  : "border-brand-100 bg-brand-50 text-brand-700"
-            }`}
-          >
-            {toast.message}
-          </div>
-        )}
+        <ToastBanner toast={toast} onDismiss={() => onModeChange(mode)} />
 
         <form className="space-y-4" onSubmit={onSubmit}>
           <Field label="Email">
@@ -1353,6 +1330,29 @@ function SectionTitle({
         <h3 className="text-lg font-black text-ink">{title}</h3>
         <p className="text-sm font-semibold text-muted">{subtitle}</p>
       </div>
+    </div>
+  );
+}
+
+function ToastBanner({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }) {
+  if (!toast) return null;
+  const isSuccess = toast.tone === "success";
+  const isError = toast.tone === "error";
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className={`mb-5 flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm font-bold ${
+        isSuccess ? "border-green-200 bg-green-50 text-green-700" : isError ? "border-red-200 bg-red-50 text-red-700" : "border-brand-100 bg-brand-50 text-brand-700"
+      }`}
+    >
+      <div className="flex items-center gap-2.5 min-w-0">
+        <span aria-hidden="true" className="shrink-0">{isSuccess ? <CheckCircle2 size={18} /> : isError ? <AlertCircle size={18} /> : <Sparkles size={18} />}</span>
+        <span className="break-words">{toast.message}</span>
+      </div>
+      <button type="button" aria-label="Fermer la notification" onClick={onDismiss} className="shrink-0 rounded-lg p-1 opacity-70 hover:opacity-100 focus-visible:opacity-100 transition-opacity">
+        <X size={16} />
+      </button>
     </div>
   );
 }
