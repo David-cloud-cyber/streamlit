@@ -28,7 +28,8 @@ import {
   Trash2,
   UploadCloud,
   User,
-  Wand2
+  Wand2,
+  X
 } from "lucide-react";
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -568,6 +569,7 @@ export default function Home() {
         onEmailChange={setAuthEmail}
         onPasswordChange={setAuthPassword}
         onSubmit={submitAuth}
+        onDismissToast={() => setToast(null)}
       />
     );
   }
@@ -662,19 +664,7 @@ export default function Home() {
         </header>
 
         <div className="px-6 py-6">
-          {toast && (
-            <div
-              className={`mb-5 rounded-xl border px-4 py-3 text-sm font-bold ${
-                toast.tone === "success"
-                  ? "border-green-200 bg-green-50 text-green-700"
-                  : toast.tone === "error"
-                    ? "border-red-200 bg-red-50 text-red-700"
-                    : "border-brand-100 bg-brand-50 text-brand-700"
-              }`}
-            >
-              {toast.message}
-            </div>
-          )}
+          <ToastBanner toast={toast} onDismiss={() => setToast(null)} />
 
           {view === "studio" && (
             <form className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]" onSubmit={createVideo}>
@@ -1196,7 +1186,8 @@ function AuthScreen({
   onModeChange,
   onEmailChange,
   onPasswordChange,
-  onSubmit
+  onSubmit,
+  onDismissToast
 }: {
   mode: AuthMode;
   email: string;
@@ -1207,6 +1198,7 @@ function AuthScreen({
   onEmailChange: (value: string) => void;
   onPasswordChange: (value: string) => void;
   onSubmit: (event: FormEvent) => void;
+  onDismissToast: () => void;
 }) {
   return (
     <main className="grid min-h-screen place-items-center bg-page px-4 py-8">
@@ -1223,19 +1215,7 @@ function AuthScreen({
           </div>
         </div>
 
-        {toast && (
-          <div
-            className={`mb-5 rounded-xl border px-4 py-3 text-sm font-bold ${
-              toast.tone === "success"
-                ? "border-green-200 bg-green-50 text-green-700"
-                : toast.tone === "error"
-                  ? "border-red-200 bg-red-50 text-red-700"
-                  : "border-brand-100 bg-brand-50 text-brand-700"
-            }`}
-          >
-            {toast.message}
-          </div>
-        )}
+        <ToastBanner toast={toast} onDismiss={onDismissToast} />
 
         <form className="space-y-4" onSubmit={onSubmit}>
           <Field label="Email">
@@ -1371,6 +1351,37 @@ function Metric({ label, value }: { label: string; value: string }) {
     <div className="rounded-xl border border-line bg-white p-3">
       <p className="text-xs font-black uppercase tracking-[0.12em] text-muted">{label}</p>
       <p className="mt-1 break-words text-sm font-black text-ink">{value}</p>
+    </div>
+  );
+}
+
+function ToastBanner({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }) {
+  if (!toast) return null;
+  const Icon = toast.tone === "success" ? CheckCircle2 : toast.tone === "error" ? AlertCircle : Sparkles;
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className={`mb-5 flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm font-bold ${
+        toast.tone === "success"
+          ? "border-green-200 bg-green-50 text-green-700"
+          : toast.tone === "error"
+            ? "border-red-200 bg-red-50 text-red-700"
+            : "border-brand-100 bg-brand-50 text-brand-700"
+      }`}
+    >
+      <div className="flex items-center gap-2">
+        <Icon size={18} className="shrink-0" aria-hidden="true" />
+        <span className="break-words">{toast.message}</span>
+      </div>
+      <button
+        type="button"
+        onClick={onDismiss}
+        aria-label="Fermer la notification"
+        className="shrink-0 rounded-lg p-0.5 opacity-70 transition hover:opacity-100 focus-visible:ring-2 focus-visible:ring-current"
+      >
+        <X size={16} aria-hidden="true" />
+      </button>
     </div>
   );
 }
